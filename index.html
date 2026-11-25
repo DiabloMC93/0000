@@ -1,0 +1,2070 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FluentRead — Aprende Inglés Leyendo y Escuchando</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter para UI, Newsreader para lectura y JetBrains Mono para fonética/atajos -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        serif: ['Newsreader', 'Georgia', 'serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Estilos de estado de palabras al estilo LingQ con 4 niveles en amarillo */
+        .word-token {
+            transition: all 0.15s ease;
+            border-radius: 0.35rem;
+            padding: 0.05rem 0.2rem;
+            margin: 0 0.02rem;
+            cursor: pointer;
+            display: inline-block;
+            line-height: 1.5;
+        }
+        .word-new {
+            background-color: rgba(59, 130, 246, 0.14);
+            border-bottom: 2px solid rgba(59, 130, 246, 0.45);
+        }
+        .dark .word-new {
+            background-color: rgba(59, 130, 246, 0.22);
+            border-bottom: 2px solid rgba(96, 165, 250, 0.6);
+        }
+        /* 4 Niveles en amarillo (1 = más intenso / recién vista, 4 = muy suave / casi conocida) */
+        .word-level-1, .word-learning {
+            background-color: rgba(245, 158, 11, 0.36);
+            border-bottom: 2px solid #d97706;
+        }
+        .dark .word-level-1, .dark .word-learning {
+            background-color: rgba(245, 158, 11, 0.38);
+            border-bottom: 2px solid #f59e0b;
+        }
+        .word-level-2 {
+            background-color: rgba(250, 204, 21, 0.34);
+            border-bottom: 2px solid #eab308;
+        }
+        .dark .word-level-2 {
+            background-color: rgba(250, 204, 21, 0.28);
+            border-bottom: 2px solid #facc15;
+        }
+        .word-level-3 {
+            background-color: rgba(253, 224, 71, 0.28);
+            border-bottom: 2px solid #facc15;
+        }
+        .dark .word-level-3 {
+            background-color: rgba(253, 224, 71, 0.18);
+            border-bottom: 2px solid #fde047;
+        }
+        .word-level-4 {
+            background-color: rgba(254, 240, 138, 0.28);
+            border-bottom: 2px dashed #eab308;
+        }
+        .dark .word-level-4 {
+            background-color: rgba(254, 240, 138, 0.12);
+            border-bottom: 2px dashed rgba(253, 224, 71, 0.7);
+        }
+        .word-known {
+            background-color: transparent;
+            border-bottom: 2px solid transparent;
+        }
+        .word-known:hover {
+            background-color: rgba(148, 163, 184, 0.18);
+        }
+        .word-selected {
+            outline: 2px solid #6366f1;
+            outline-offset: 1px;
+            background-color: rgba(99, 102, 241, 0.2) !important;
+        }
+
+        /* Resaltado de oración activa */
+        .sentence-block {
+            transition: background-color 0.2s ease, border-color 0.2s ease;
+        }
+        .sentence-playing {
+            background-color: rgba(99, 102, 241, 0.08);
+            border-left-color: #6366f1 !important;
+        }
+        .dark .sentence-playing {
+            background-color: rgba(99, 102, 241, 0.16);
+        }
+
+        /* Tema Sepia */
+        .theme-sepia {
+            background-color: #f6f1e7 !important;
+            color: #3d3226 !important;
+        }
+        .theme-sepia .surface-card {
+            background-color: #fdfaf3 !important;
+            border-color: #e6dcc8 !important;
+        }
+
+        /* Animación suave para indicador de audio */
+        @keyframes pulse-audio {
+            0%, 100% { transform: scaleY(0.4); }
+            50% { transform: scaleY(1); }
+        }
+        .audio-bar {
+            animation: pulse-audio 0.8s infinite ease-in-out;
+        }
+        .audio-bar:nth-child(2) { animation-delay: 0.15s; }
+        .audio-bar:nth-child(3) { animation-delay: 0.3s; }
+
+        /* Scrollbar sutil */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.4); border-radius: 9999px; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100 font-sans antialiased min-h-screen flex flex-col transition-colors duration-200">
+
+    <!-- ==================== HEADER SUPERIOR ==================== -->
+    <header class="sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 surface-card">
+        <div class="max-w-7xl mx-auto px-3 sm:px-6 h-16 flex items-center justify-between gap-2">
+            <!-- Logo y título -->
+            <div class="flex items-center gap-2.5 cursor-pointer" onclick="switchView('home')">
+                <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 text-white flex items-center justify-center shadow-md shadow-indigo-500/20 font-bold text-lg">
+                    F
+                </div>
+                <div>
+                    <h1 class="font-bold text-base sm:text-lg leading-tight tracking-tight flex items-center gap-1.5">
+                        FluentRead
+                        <span class="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-700 dark:bg-indigo-900/60 dark:text-indigo-300">English</span>
+                    </h1>
+                    <p class="text-[11px] text-slate-500 dark:text-slate-400 hidden sm:block">Lee, escucha oración por oración y domina el inglés</p>
+                </div>
+            </div>
+
+            <!-- Pestañas de navegación central -->
+            <nav class="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                <button id="tab-home" onclick="switchView('home')" class="px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-sm">
+                    Historias
+                </button>
+                <button id="tab-reader" onclick="switchView('reader')" class="px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white">
+                    Lector
+                </button>
+                <button id="tab-vocab" onclick="switchView('vocab')" class="px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white flex items-center gap-1.5">
+                    Vocabulario
+                    <span id="badge-learning-count" class="px-1.5 py-0.5 rounded-full text-[10px] bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300 font-semibold">0</span>
+                </button>
+                <button id="tab-ai" onclick="openAIModal()" class="ml-1 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white shadow-sm flex items-center gap-1">
+                    <span>✨</span>
+                    <span class="hidden sm:inline">Crear con IA</span>
+                </button>
+            </nav>
+
+            <!-- Estadísticas rápidas y Tema -->
+            <div class="flex items-center gap-2">
+                <div class="hidden md:flex items-center gap-3 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 text-xs font-medium">
+                    <span class="flex items-center gap-1 text-emerald-600 dark:text-emerald-400" title="Palabras conocidas">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                        <strong id="stat-known">0</strong> conocidas
+                    </span>
+                    <span class="text-slate-300 dark:text-slate-600">|</span>
+                    <span class="flex items-center gap-1 text-amber-600 dark:text-amber-400" title="Palabras en aprendizaje">
+                        <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+                        <strong id="stat-learning">0</strong> estudiando
+                    </span>
+                </div>
+
+                <!-- Botón cambio de tema (Claro / Sepia / Oscuro) -->
+                <button onclick="cycleTheme()" id="btn-theme" title="Cambiar tema (Claro / Sepia / Oscuro)" class="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors">
+                    <svg id="icon-theme" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- ==================== BARRA DE HERRAMIENTAS DEL LECTOR ==================== -->
+    <div id="reader-toolbar" class="hidden sticky top-16 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 surface-card shadow-sm">
+        <div class="max-w-7xl mx-auto px-3 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-2.5">
+            
+            <!-- Botón volver + Selector de Lección -->
+            <div class="flex items-center gap-2 flex-1 min-w-[220px] max-w-sm">
+                <button onclick="switchView('home')" title="Volver a todas las historias" class="px-2.5 py-2 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 flex items-center gap-1 flex-shrink-0">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                    <span class="hidden sm:inline">Historias</span>
+                </button>
+                <select id="lesson-selector" onchange="loadLesson(this.value)" class="w-full text-xs sm:text-sm font-medium bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer">
+                    <!-- Opciones inyectadas dinámicamente -->
+                </select>
+            </div>
+
+            <!-- BOTONES PRINCIPALES: Traducir a Español + Traducción Fonética -->
+            <div class="flex flex-wrap items-center gap-2">
+                <button id="btn-toggle-es" onclick="toggleSpanishTranslation()" class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold border transition-all bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-indigo-400">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/></svg>
+                    <span>Traducir a Español</span>
+                </button>
+
+                <button id="btn-toggle-phonetics" onclick="togglePhonetics()" class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold border transition-all bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-violet-400">
+                    <span>🗣️</span>
+                    <span>Fonética</span>
+                </button>
+            </div>
+
+            <!-- Controles de Audio (Todo / Velocidad / Acento) -->
+            <div class="flex items-center gap-2">
+                <button id="btn-play-all" onclick="togglePlayAll()" class="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition-all">
+                    <svg id="icon-play-all" class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                    <span id="label-play-all">Escuchar Todo</span>
+                </button>
+
+                <button onclick="cycleSpeed()" id="btn-speed" title="Velocidad de lectura" class="px-2.5 py-2 rounded-xl text-xs font-mono font-semibold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700">
+                    1.0x
+                </button>
+
+                <button onclick="toggleAccent()" id="btn-accent" title="Cambiar acento inglés (EE.UU. / Reino Unido)" class="px-2.5 py-2 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700">
+                    🇺🇸 US
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== CONTENEDOR PRINCIPAL ==================== -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-6">
+
+        <!-- VISTA 0: PÁGINA PRINCIPAL - BIBLIOTECA DE HISTORIAS EN TARJETAS -->
+        <div id="view-home" class="space-y-6">
+            <!-- Cabecera Hero con botón de IA e Importar -->
+            <div class="bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700 rounded-3xl p-6 sm:p-8 text-white shadow-lg shadow-indigo-500/15 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                <div class="space-y-2 max-w-2xl">
+                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-white/15 backdrop-blur-sm border border-white/20">
+                        🇬🇧 Solo Inglés · Niveles A1 a B2
+                    </span>
+                    <h2 class="text-2xl sm:text-3xl font-bold tracking-tight">Elige una historia o crea la tuya con IA</h2>
+                    <p class="text-sm text-indigo-100 leading-relaxed">
+                        Practica inglés leyendo historias interactivas con audio oración por oración, traducción al español y pronunciación fonética fácil de leer (ej. <em>"Di óder fáiters kéim íntu di arína"</em>).
+                    </p>
+                </div>
+                <div class="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                    <button onclick="openAIModal()" class="flex-1 md:flex-none px-5 py-3 rounded-2xl bg-white text-indigo-700 hover:bg-indigo-50 font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2">
+                        <span>✨</span>
+                        <span>Generar Historia con IA</span>
+                    </button>
+                    <button onclick="openImportModal()" class="px-4 py-3 rounded-2xl bg-white/15 hover:bg-white/25 text-white border border-white/25 font-semibold text-sm transition-all flex items-center justify-center gap-1.5">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                        <span>Importar</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Filtros por Nivel (A1 a B2) -->
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <div class="flex flex-wrap items-center gap-2" id="level-filters">
+                    <button onclick="setHomeLevelFilter('ALL')" data-filter="ALL" class="level-filter-btn px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-indigo-600 text-white shadow-sm transition-all">
+                        Todos los niveles
+                    </button>
+                    <button onclick="setHomeLevelFilter('A1')" data-filter="A1" class="level-filter-btn px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:border-emerald-400 transition-all">
+                        A1 · Principiante
+                    </button>
+                    <button onclick="setHomeLevelFilter('A2')" data-filter="A2" class="level-filter-btn px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:border-sky-400 transition-all">
+                        A2 · Básico
+                    </button>
+                    <button onclick="setHomeLevelFilter('B1')" data-filter="B1" class="level-filter-btn px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:border-amber-400 transition-all">
+                        B1 · Intermedio
+                    </button>
+                    <button onclick="setHomeLevelFilter('B2')" data-filter="B2" class="level-filter-btn px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:border-violet-400 transition-all">
+                        B2 · Intermedio Alto
+                    </button>
+                </div>
+                <span id="home-story-count" class="text-xs font-medium text-slate-500 dark:text-slate-400"></span>
+            </div>
+
+            <!-- Cuadrícula de Tarjetas de Historias -->
+            <div id="stories-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                <!-- Tarjetas generadas por JS -->
+            </div>
+        </div>
+
+        <!-- VISTA 1: LECTOR INTERACTIVO -->
+        <div id="view-reader" class="hidden grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            
+            <!-- Columna Izquierda/Centro: Texto Interactivo -->
+            <section class="lg:col-span-8 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-5 sm:p-8 surface-card">
+                <!-- Cabecera de la lección -->
+                <div class="flex flex-wrap items-start justify-between gap-4 pb-5 mb-6 border-b border-slate-100 dark:border-slate-800">
+                    <div>
+                        <div class="flex items-center gap-2 mb-1.5">
+                            <span id="lesson-level" class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300">Nivel A1</span>
+                            <span id="lesson-category" class="text-xs text-slate-500 dark:text-slate-400">Aventura</span>
+                        </div>
+                        <h2 id="lesson-title" class="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white font-serif">Cargando lección...</h2>
+                    </div>
+
+                    <!-- Leyenda rápida de colores -->
+                    <div class="flex flex-wrap items-center gap-3 text-[11px] text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/60 px-3 py-2 rounded-xl">
+                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-blue-400/50 border border-blue-500"></span> Nueva</span>
+                        <span class="flex items-center gap-1">
+                            <span class="inline-flex gap-0.5">
+                                <span class="w-2 h-2.5 rounded-sm bg-amber-500/75" title="Nivel 1"></span>
+                                <span class="w-2 h-2.5 rounded-sm bg-yellow-400/75" title="Nivel 2"></span>
+                                <span class="w-2 h-2.5 rounded-sm bg-yellow-300/75" title="Nivel 3"></span>
+                                <span class="w-2 h-2.5 rounded-sm bg-yellow-200/80 border border-yellow-400" title="Nivel 4"></span>
+                            </span>
+                            Niveles 1–4
+                        </span>
+                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm border border-slate-300 dark:border-slate-600"></span> Conocida</span>
+                    </div>
+                </div>
+
+                <!-- Sugerencia de atajos de teclado -->
+                <div class="mb-6 px-4 py-2.5 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/50 text-xs text-indigo-800 dark:text-indigo-200 flex flex-wrap items-center justify-between gap-2">
+                    <span>⌨️ <strong>Atajos de teclado:</strong> Usa <kbd class="px-1.5 py-0.5 rounded bg-white/80 dark:bg-slate-800 font-mono font-bold border border-indigo-200 dark:border-indigo-700">←</kbd> <kbd class="px-1.5 py-0.5 rounded bg-white/80 dark:bg-slate-800 font-mono font-bold border border-indigo-200 dark:border-indigo-700">→</kbd> para moverte por palabras, <kbd class="px-1.5 py-0.5 rounded bg-white/80 dark:bg-slate-800 font-mono font-bold border border-indigo-200 dark:border-indigo-700">↑</kbd> <kbd class="px-1.5 py-0.5 rounded bg-white/80 dark:bg-slate-800 font-mono font-bold border border-indigo-200 dark:border-indigo-700">↓</kbd> por oraciones, y pulsa <kbd class="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/60 font-mono font-bold">1</kbd> <kbd class="px-1.5 py-0.5 rounded bg-yellow-100 dark:bg-yellow-900/60 font-mono font-bold">2</kbd> <kbd class="px-1.5 py-0.5 rounded bg-yellow-50 dark:bg-yellow-900/40 font-mono font-bold">3</kbd> <kbd class="px-1.5 py-0.5 rounded bg-yellow-50 dark:bg-yellow-900/30 font-mono font-bold">4</kbd> para los niveles amarillos (<kbd class="px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/60 font-mono font-bold">5</kbd> Conocida, <kbd class="px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/60 font-mono font-bold">0</kbd> Nueva).</span>
+                </div>
+
+                <!-- Contenedor de Oraciones -->
+                <div id="sentences-container" class="space-y-5">
+                    <!-- Oraciones renderizadas por JS -->
+                </div>
+
+                <!-- Pie de lección: Marcar todo como conocido -->
+                <div class="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4">
+                    <p class="text-xs text-slate-500 dark:text-slate-400">¿Ya dominas todas las palabras azules de este texto?</p>
+                    <button onclick="markRemainingAsKnown()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50 border border-emerald-200 dark:border-emerald-800 transition-colors">
+                        ✓ Marcar palabras nuevas como Conocidas
+                    </button>
+                </div>
+            </section>
+
+            <!-- Columna Derecha: Panel Inspector de Palabra y Oración -->
+            <aside id="inspector-panel" class="lg:col-span-4 lg:sticky lg:top-36 space-y-4">
+                
+                <!-- Tarjeta de Palabra Seleccionada -->
+                <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-5 surface-card">
+                    <div id="inspector-empty" class="text-center py-8">
+                        <div class="w-12 h-12 mx-auto mb-3 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"/></svg>
+                        </div>
+                        <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Toca una palabra o usa las flechas</h3>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Verás su traducción al español, su pronunciación fonética y podrás clasificarla del 1 al 4.</p>
+                    </div>
+
+                    <div id="inspector-content" class="hidden space-y-4">
+                        <!-- Palabra y botón de audio -->
+                        <div class="flex items-start justify-between gap-2">
+                            <div>
+                                <h3 id="insp-word" class="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">word</h3>
+                                <div class="flex flex-wrap items-center gap-2 mt-1.5">
+                                    <span id="insp-approx" class="text-xs font-semibold text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-950/60 px-2 py-0.5 rounded-md">pronunciación</span>
+                                    <span id="insp-ipa" class="font-mono text-[11px] text-slate-400">/ipa/</span>
+                                </div>
+                            </div>
+                            <button onclick="speakSelectedWord()" title="Escuchar palabra" class="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-600 hover:text-white transition-colors flex-shrink-0">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
+                            </button>
+                        </div>
+
+                        <!-- Significado en Español (editable) -->
+                        <div class="space-y-1.5">
+                            <label for="insp-meaning" class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Traducción al Español</label>
+                            <div class="flex gap-2">
+                                <input id="insp-meaning" type="text" placeholder="Significado en español..." class="flex-1 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                <button onclick="saveCustomMeaning()" class="px-3 py-2 rounded-xl bg-slate-900 dark:bg-indigo-600 text-white text-xs font-semibold hover:opacity-90 transition-opacity">
+                                    Guardar
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Estado de la palabra (Nueva, 4 Niveles en Amarillo, Conocida) -->
+                        <div class="space-y-2 pt-1">
+                            <div class="flex items-center justify-between">
+                                <label class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Nivel de dominio (Teclas 0–5)</label>
+                                <span id="insp-level-label" class="text-[11px] font-semibold text-amber-600 dark:text-amber-400"></span>
+                            </div>
+                            <!-- 4 niveles en amarillo -->
+                            <div class="grid grid-cols-4 gap-1.5">
+                                <button onclick="setWordStatus('level-1')" id="status-btn-level-1" title="Nivel 1: Recién vista (Tecla 1)" class="py-2 px-1 rounded-xl text-xs font-bold border transition-all flex flex-col items-center">
+                                    <span>1</span>
+                                    <span class="text-[9px] font-normal opacity-80">Nueva</span>
+                                </button>
+                                <button onclick="setWordStatus('level-2')" id="status-btn-level-2" title="Nivel 2: Reconozco (Tecla 2)" class="py-2 px-1 rounded-xl text-xs font-bold border transition-all flex flex-col items-center">
+                                    <span>2</span>
+                                    <span class="text-[9px] font-normal opacity-80">Suena</span>
+                                </button>
+                                <button onclick="setWordStatus('level-3')" id="status-btn-level-3" title="Nivel 3: Familiar (Tecla 3)" class="py-2 px-1 rounded-xl text-xs font-bold border transition-all flex flex-col items-center">
+                                    <span>3</span>
+                                    <span class="text-[9px] font-normal opacity-80">Familiar</span>
+                                </button>
+                                <button onclick="setWordStatus('level-4')" id="status-btn-level-4" title="Nivel 4: Casi aprendida (Tecla 4)" class="py-2 px-1 rounded-xl text-xs font-bold border transition-all flex flex-col items-center">
+                                    <span>4</span>
+                                    <span class="text-[9px] font-normal opacity-80">Casi</span>
+                                </button>
+                            </div>
+                            <!-- Nueva (0) y Conocida (5) -->
+                            <div class="grid grid-cols-2 gap-2">
+                                <button onclick="setWordStatus('new')" id="status-btn-new" title="Tecla 0" class="py-2 px-2 rounded-xl text-xs font-semibold border transition-all">
+                                    🔵 Nueva (0)
+                                </button>
+                                <button onclick="setWordStatus('known')" id="status-btn-known" title="Tecla 5" class="py-2 px-2 rounded-xl text-xs font-semibold border transition-all">
+                                    🟢 Conocida (5)
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tarjeta de Oración Activa (Reproductor de Oración Única + Bucle) -->
+                <div id="active-sentence-card" class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-5 surface-card">
+                    <div class="flex items-center justify-between mb-3">
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                            <svg class="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
+                            Oración Seleccionada
+                        </h4>
+                        <span id="active-sentence-num" class="text-[11px] font-mono text-slate-400">#1</span>
+                    </div>
+
+                    <p id="active-sentence-en" class="text-sm font-serif text-slate-800 dark:text-slate-200 leading-relaxed mb-2">
+                        Selecciona cualquier oración del texto para practicar su pronunciación.
+                    </p>
+                    <p id="active-sentence-ipa" class="text-xs font-medium text-violet-700 dark:text-violet-300 bg-violet-50/70 dark:bg-violet-950/40 px-2.5 py-1.5 rounded-lg mb-2 hidden"></p>
+                    <p id="active-sentence-es" class="text-xs text-slate-500 dark:text-slate-400 italic mb-4 hidden"></p>
+
+                    <div class="flex items-center gap-2">
+                        <button onclick="playSelectedSentence()" class="flex-1 py-2.5 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-sm transition-colors flex items-center justify-center gap-1.5">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                            <span>Escuchar Oración</span>
+                        </button>
+                        <button id="btn-loop-sentence" onclick="toggleLoopSentence()" title="Repetir esta oración en bucle" class="py-2.5 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:border-indigo-400 text-xs font-semibold transition-colors flex items-center gap-1">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                            <span>Bucle</span>
+                        </button>
+                    </div>
+                </div>
+            </aside>
+        </div>
+
+        <!-- VISTA 2: VOCABULARIO GUARDADO -->
+        <div id="view-vocab" class="hidden space-y-6">
+            <div class="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm surface-card">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-900 dark:text-white">Tu Vocabulario en Inglés</h2>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Repasa las palabras que estás estudiando (Niveles 1–4) o consulta las que ya dominas.</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button id="vfilter-learning" onclick="filterVocab('learning')" class="px-3.5 py-2 rounded-xl text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200">
+                        🟡 Estudiando
+                    </button>
+                    <button id="vfilter-known" onclick="filterVocab('known')" class="px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                        🟢 Conocidas
+                    </button>
+                </div>
+            </div>
+
+            <div id="vocab-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <!-- Tarjetas de vocabulario renderizadas por JS -->
+            </div>
+        </div>
+    </main>
+
+    <!-- ==================== MODAL GENERAR HISTORIA CON IA (GEMINI) ==================== -->
+    <div id="ai-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-xl w-full p-6 space-y-5 max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 text-white flex items-center justify-center text-lg shadow-sm">✨</div>
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-900 dark:text-white leading-tight">Generador de Historias con IA</h3>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">Crea una lección en inglés con traducción y fonética al español</p>
+                    </div>
+                </div>
+                <button onclick="closeAIModal()" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            <!-- Selector de Nivel A1 - B2 -->
+            <div class="space-y-2">
+                <label class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">1. Elige tu nivel de inglés</label>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2" id="ai-level-group">
+                    <button type="button" onclick="selectAILevel('A1')" data-ailevel="A1" class="ai-level-btn py-2.5 px-3 rounded-xl border text-xs font-bold transition-all bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200">
+                        A1<span class="block font-normal text-[10px] opacity-75">Principiante</span>
+                    </button>
+                    <button type="button" onclick="selectAILevel('A2')" data-ailevel="A2" class="ai-level-btn py-2.5 px-3 rounded-xl border text-xs font-bold transition-all bg-indigo-600 border-indigo-600 text-white shadow-sm">
+                        A2<span class="block font-normal text-[10px] opacity-90">Básico</span>
+                    </button>
+                    <button type="button" onclick="selectAILevel('B1')" data-ailevel="B1" class="ai-level-btn py-2.5 px-3 rounded-xl border text-xs font-bold transition-all bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200">
+                        B1<span class="block font-normal text-[10px] opacity-75">Intermedio</span>
+                    </button>
+                    <button type="button" onclick="selectAILevel('B2')" data-ailevel="B2" class="ai-level-btn py-2.5 px-3 rounded-xl border text-xs font-bold transition-all bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200">
+                        B2<span class="block font-normal text-[10px] opacity-75">Intermedio Alto</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tema de la historia -->
+            <div class="space-y-2">
+                <label class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">2. ¿De qué trata la historia?</label>
+                <input id="ai-topic" type="text" placeholder="Ej. Un combate épico en la arena, un viaje a Nueva York, un misterio..." class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <div class="flex flex-wrap gap-1.5 pt-1">
+                    <button type="button" onclick="setAITopic('A fierce tournament of fighters entering a medieval arena')" class="text-[11px] px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-slate-600 dark:text-slate-300 transition-colors">⚔️ Torneo en la arena</button>
+                    <button type="button" onclick="setAITopic('A solo traveler getting lost in Tokyo and making a new friend')" class="text-[11px] px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-slate-600 dark:text-slate-300 transition-colors">✈️ Viaje a Tokio</button>
+                    <button type="button" onclick="setAITopic('A mysterious locked letter found inside an old coffee shop')" class="text-[11px] px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-slate-600 dark:text-slate-300 transition-colors">🔍 Misterio en cafetería</button>
+                    <button type="button" onclick="setAITopic('Preparing for a dream job interview in London')" class="text-[11px] px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-slate-600 dark:text-slate-300 transition-colors">💼 Entrevista de trabajo</button>
+                </div>
+            </div>
+
+            <!-- Longitud -->
+            <div class="space-y-2">
+                <label class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">3. Extensión</label>
+                <select id="ai-length" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <option value="5">Corta (5 oraciones)</option>
+                    <option value="8" selected>Media (8 oraciones)</option>
+                    <option value="12">Larga (12 oraciones)</option>
+                </select>
+            </div>
+
+            <!-- Estado de carga / Error -->
+            <div id="ai-loading" class="hidden p-4 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 flex items-center gap-3">
+                <svg class="w-5 h-5 text-indigo-600 dark:text-indigo-400 animate-spin flex-shrink-0" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <div class="text-xs text-indigo-800 dark:text-indigo-200">
+                    <strong class="block">Escribiendo tu historia con IA...</strong>
+                    <span>Generando oraciones en inglés, traducción al español y fonética legible.</span>
+                </div>
+            </div>
+            <div id="ai-error" class="hidden p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 text-xs text-rose-700 dark:text-rose-300"></div>
+
+            <div class="flex items-center justify-end gap-2 pt-2">
+                <button id="ai-cancel-btn" onclick="closeAIModal()" class="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">Cancelar</button>
+                <button id="ai-submit-btn" onclick="generateAIStory()" class="px-5 py-2.5 rounded-xl text-xs font-bold bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white shadow-md transition-all flex items-center gap-1.5">
+                    <span>✨</span>
+                    <span>Generar Historia</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== MODAL IMPORTAR TEXTO EN INGLÉS ==================== -->
+    <div id="import-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-xl w-full p-6 space-y-4">
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-bold text-slate-900 dark:text-white">Importar tu propio texto en Inglés</h3>
+                <button onclick="closeImportModal()" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <p class="text-xs text-slate-500 dark:text-slate-400">Pega cualquier artículo, historia o diálogo en inglés. El sistema lo dividirá automáticamente en oraciones reproducibles, generará la fonética y traducirá al español cuando lo solicites.</p>
+            
+            <div class="space-y-3">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    <input id="import-title" type="text" placeholder="Título de la lección" class="sm:col-span-2 px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <select id="import-level" class="px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="A1">Nivel A1</option>
+                        <option value="A2">Nivel A2</option>
+                        <option value="B1" selected>Nivel B1</option>
+                        <option value="B2">Nivel B2</option>
+                    </select>
+                </div>
+                <textarea id="import-text" rows="6" placeholder="Paste your English text here... Every sentence ending with a period, question mark, or exclamation mark will become playable individually." class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-serif"></textarea>
+            </div>
+
+            <div class="flex items-center justify-end gap-2 pt-2">
+                <button onclick="closeImportModal()" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">Cancelar</button>
+                <button onclick="importCustomLesson()" class="px-5 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm">Crear Lección</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== NOTIFICACIÓN TOAST ==================== -->
+    <div id="toast" class="fixed bottom-5 right-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-4 py-3 rounded-xl shadow-xl text-xs font-semibold flex items-center gap-2 pointer-events-none">
+        <span id="toast-msg">Notificación</span>
+    </div>
+
+    <!-- ==================== LÓGICA JAVASCRIPT ==================== -->
+    <script>
+        /* =========================================================================
+           1. DATOS DE LECCIONES EN INGLÉS (NIVELES A1 A B2 + FONÉTICA EN ESPAÑOL)
+           ========================================================================= */
+        const LEVEL_ORDER = { 'A1': 1, 'A2': 2, 'B1': 3, 'B2': 4 };
+
+        const DEFAULT_LESSONS = [
+            {
+                id: 'arena-fighters-a1',
+                title: 'The Fighters in the Arena',
+                level: 'Nivel A1',
+                levelCode: 'A1',
+                category: 'Aventura',
+                description: 'Una historia corta y sencilla de acción ideal para empezar a entrenar el oído desde cero.',
+                sentences: [
+                    {
+                        en: "The other fighters came into the arena.",
+                        es: "Los otros luchadores entraron en la arena.",
+                        phonetic: "Di óder fáiters kéim íntu di arína."
+                    },
+                    {
+                        en: "The crowd is loud and very excited today.",
+                        es: "La multitud hace ruido y está muy emocionada hoy.",
+                        phonetic: "De kráud iz láud and véri eksáitid tudéi."
+                    },
+                    {
+                        en: "A young hero stands in the center and looks up.",
+                        es: "Un joven héroe se para en el centro y mira hacia arriba.",
+                        phonetic: "A yang jírou stands in de sénter and luks ap."
+                    },
+                    {
+                        en: "He takes a deep breath and holds his wooden shield.",
+                        es: "Él respira profundo y sostiene su escudo de madera.",
+                        phonetic: "Ji téiks a díp brez and jóulds jiz uúden shíld."
+                    },
+                    {
+                        en: "When the bell rings, the friendly contest begins.",
+                        es: "Cuando suena la campana, comienza la competencia amistosa.",
+                        phonetic: "Uén de bel rings, de fréndli kóntest bigíns."
+                    }
+                ]
+            },
+            {
+                id: 'london-morning',
+                title: 'A Quiet Morning in London',
+                level: 'Nivel A2',
+                levelCode: 'A2',
+                category: 'Vida Cotidiana',
+                description: 'Un domingo tranquilo en Londres tomando café junto al río mientras planeas la semana.',
+                sentences: [
+                    {
+                        en: "Every Sunday morning, Clara walks to a small coffee shop near the river.",
+                        es: "Todos los domingos por la mañana, Clara camina hacia una pequeña cafetería cerca del río.",
+                        phonetic: "Évri sándei mórning, Klára uóks tu a smól kófi shop níar de ríver."
+                    },
+                    {
+                        en: "The streets are still quiet, and the cool air feels refreshing after a busy week.",
+                        es: "Las calles todavía están tranquilas y el aire fresco se siente revitalizante después de una semana ocupada.",
+                        phonetic: "De stríts ar stil kuáiet, and de kúl éar fíls rifréshing áfter a bízi uík."
+                    },
+                    {
+                        en: "She always orders a warm cappuccino and a fresh croissant by the window.",
+                        es: "Ella siempre pide un capuchino caliente y un cruasán fresco junto a la ventana.",
+                        phonetic: "Shi ólueis órders a uórm kapuchínou and a fresh kuasán bai de uíndou."
+                    },
+                    {
+                        en: "While sipping her coffee, she opens her notebook and writes down three simple goals.",
+                        es: "Mientras bebe sorbos de su café, abre su cuaderno y anota tres metas sencillas.",
+                        phonetic: "Uáil síping jer kófi, shi óupens jer nóutbuk and ráits dáun zrí símpol góuls."
+                    },
+                    {
+                        en: "Watching people pass by with their dogs makes her appreciate the little moments in life.",
+                        es: "Ver pasar a la gente con sus perros le hace apreciar los pequeños momentos de la vida.",
+                        phonetic: "Uóching pípol pas bai uid dear dogs méiks jer apríshieit de lítol móuments in láif."
+                    }
+                ]
+            },
+            {
+                id: 'deep-focus',
+                title: 'The Art of Deep Focus',
+                level: 'Nivel B1',
+                levelCode: 'B1',
+                category: 'Productividad',
+                description: 'Descubre por qué proteger tu atención en un mundo lleno de distracciones es un superpoder.',
+                sentences: [
+                    {
+                        en: "In a world full of constant notifications, paying attention has become a rare superpower.",
+                        es: "En un mundo lleno de notificaciones constantes, prestar atención se ha convertido en un superpoder poco común.",
+                        phonetic: "In a uérld ful ov kónstant noutifikéishons, péiing aténshon jaz bikám a réar súperpauer."
+                    },
+                    {
+                        en: "Whenever you switch between tasks, your brain loses valuable energy trying to refocus.",
+                        es: "Cada vez que cambias entre tareas, tu cerebro pierde energía valiosa intentando volver a concentrarse.",
+                        phonetic: "Uenéver iu suích bituín tasks, ior bréin lúzis váliuabol éner-yi tráiing tu rifóukas."
+                    },
+                    {
+                        en: "Researchers suggest working in uninterrupted blocks of forty minutes followed by a short break.",
+                        es: "Los investigadores sugieren trabajar en bloques ininterrumpidos de cuarenta minutos seguidos de un breve descanso.",
+                        phonetic: "Risérchers sayést uérking in aninteráptid bloks ov fórti mínits fóloud bai a short bréik."
+                    },
+                    {
+                        en: "Putting your phone in another room is often the easiest way to protect your mental clarity.",
+                        es: "Poner tu teléfono en otra habitación es a menudo la forma más fácil de proteger tu claridad mental.",
+                        phonetic: "Púting ior fóun in anáder rúm iz ófen di íziest uéi tu protékt ior méntal kláriti."
+                    },
+                    {
+                        en: "Over time, these small habits allow you to learn faster and create more meaningful work.",
+                        es: "Con el tiempo, estos pequeños hábitos te permiten aprender más rápido y crear un trabajo más significativo.",
+                        phonetic: "Óuver táim, dis smól jábits aláu iu tu lérn fáster and kriéit mor míningful uérk."
+                    }
+                ]
+            },
+            {
+                id: 'language-memory',
+                title: 'How Stories Unlock Language Memory',
+                level: 'Nivel B2',
+                levelCode: 'B2',
+                category: 'Aprendizaje',
+                description: 'Cómo el cerebro humano recuerda el vocabulario natural a través de historias y ritmo.',
+                sentences: [
+                    {
+                        en: "Memorizing isolated vocabulary lists rarely helps you speak naturally during a real conversation.",
+                        es: "Memorizar listas de vocabulario aislado rara vez te ayuda a hablar con naturalidad durante una conversación real.",
+                        phonetic: "Mémoraizing áisoleitid vokábiuleri lists réarli jelps iu spík náchurali diúring a ríal konverséishon."
+                    },
+                    {
+                        en: "Instead, our brains evolved to remember patterns, emotions, and compelling narratives.",
+                        es: "En cambio, nuestros cerebros evolucionaron para recordar patrones, emociones y narrativas cautivadoras.",
+                        phonetic: "Instéd, áuer bréins ivólvd tu rimémber páterns, imóushons, and kompéling nárativs."
+                    },
+                    {
+                        en: "When you read and listen to the same sentence repeatedly, your ear gradually adapts to natural rhythm.",
+                        es: "Cuando lees y escuchas la misma oración repetidamente, tu oído se adapta gradualmente al ritmo natural.",
+                        phonetic: "Uén iu ríd and lísen tu de séim séntens ripítidli, ior íar grádiuali adápts tu náchural rídem."
+                    },
+                    {
+                        en: "Curiosity turns a difficult study routine into an enjoyable daily adventure.",
+                        es: "La curiosidad convierte una rutina de estudio difícil en una aventura diaria agradable.",
+                        phonetic: "Kiuriósiti térns a dífikolt stádi rutín íntu an inyóiabol déili advéncher."
+                    }
+                ]
+            }
+        ];
+
+        /* =========================================================================
+           2. DICCIONARIO INTEGRADO INGLÉS -> ESPAÑOL + FONÉTICA EN ESPAÑOL
+           ========================================================================= */
+        const BUILTIN_DICT = {
+            "other": { es: "otro / otros", ipa: "/ˈʌð.ər/", approx: "óder" },
+            "fighters": { es: "luchadores", ipa: "/ˈfaɪ.tərz/", approx: "fáiters" },
+            "came": { es: "vinieron / entraron", ipa: "/keɪm/", approx: "kéim" },
+            "arena": { es: "arena / estadio", ipa: "/əˈriː.nə/", approx: "arína" },
+            "crowd": { es: "multitud", ipa: "/kraʊd/", approx: "kráud" },
+            "loud": { es: "ruidoso / fuerte", ipa: "/laʊd/", approx: "láud" },
+            "very": { es: "muy", ipa: "/ˈver.i/", approx: "véri" },
+            "excited": { es: "emocionado/a", ipa: "/ɪkˈsaɪ.tɪd/", approx: "eksáitid" },
+            "today": { es: "hoy", ipa: "/təˈdeɪ/", approx: "tudéi" },
+            "young": { es: "joven", ipa: "/jʌŋ/", approx: "yang" },
+            "hero": { es: "héroe", ipa: "/ˈhɪə.roʊ/", approx: "jírou" },
+            "stands": { es: "se para / está de pie", ipa: "/stændz/", approx: "stands" },
+            "center": { es: "centro", ipa: "/ˈsen.tər/", approx: "sénter" },
+            "looks": { es: "mira", ipa: "/lʊks/", approx: "luks" },
+            "up": { es: "arriba", ipa: "/ʌp/", approx: "ap" },
+            "he": { es: "él", ipa: "/hiː/", approx: "ji" },
+            "his": { es: "su (de él)", ipa: "/hɪz/", approx: "jiz" },
+            "takes": { es: "toma", ipa: "/teɪks/", approx: "téiks" },
+            "deep": { es: "profundo", ipa: "/diːp/", approx: "díp" },
+            "breath": { es: "respiración / aliento", ipa: "/breθ/", approx: "brez" },
+            "holds": { es: "sostiene", ipa: "/hoʊldz/", approx: "jóulds" },
+            "wooden": { es: "de madera", ipa: "/ˈwʊd.ən/", approx: "uúden" },
+            "shield": { es: "escudo", ipa: "/ʃiːld/", approx: "shíld" },
+            "bell": { es: "campana", ipa: "/bel/", approx: "bel" },
+            "rings": { es: "suena", ipa: "/rɪŋz/", approx: "rings" },
+            "friendly": { es: "amistoso", ipa: "/ˈfrend.li/", approx: "fréndli" },
+            "contest": { es: "competencia / concurso", ipa: "/ˈkɒn.test/", approx: "kóntest" },
+            "begins": { es: "comienza", ipa: "/bɪˈɡɪnz/", approx: "bigíns" },
+            "every": { es: "cada / todos", ipa: "/ˈev.ri/", approx: "évri" },
+            "sunday": { es: "domingo", ipa: "/ˈsʌn.deɪ/", approx: "sándei" },
+            "morning": { es: "mañana", ipa: "/ˈmɔːr.nɪŋ/", approx: "mórning" },
+            "walks": { es: "camina", ipa: "/wɔːks/", approx: "uóks" },
+            "walk": { es: "caminar", ipa: "/wɔːk/", approx: "uók" },
+            "small": { es: "pequeño/a", ipa: "/smɔːl/", approx: "smól" },
+            "coffee": { es: "café", ipa: "/ˈkɒf.i/", approx: "kófi" },
+            "shop": { es: "tienda / local", ipa: "/ʃɒp/", approx: "shop" },
+            "near": { es: "cerca de", ipa: "/nɪər/", approx: "níar" },
+            "river": { es: "río", ipa: "/ˈrɪv.ər/", approx: "ríver" },
+            "streets": { es: "calles", ipa: "/striːts/", approx: "stríts" },
+            "still": { es: "todavía / quieto", ipa: "/stɪl/", approx: "stil" },
+            "quiet": { es: "tranquilo / silencioso", ipa: "/ˈkwaɪ.ət/", approx: "kuáiet" },
+            "cool": { es: "fresco / genial", ipa: "/kuːl/", approx: "kúl" },
+            "air": { es: "aire", ipa: "/eər/", approx: "éar" },
+            "feels": { es: "se siente", ipa: "/fiːlz/", approx: "fíls" },
+            "refreshing": { es: "refrescante / revitalizante", ipa: "/rɪˈfreʃ.ɪŋ/", approx: "rifréshing" },
+            "after": { es: "después de", ipa: "/ˈɑːf.tər/", approx: "áfter" },
+            "busy": { es: "ocupado/a", ipa: "/ˈbɪz.i/", approx: "bízi" },
+            "week": { es: "semana", ipa: "/wiːk/", approx: "uík" },
+            "always": { es: "siempre", ipa: "/ˈɔːl.weɪz/", approx: "ólueis" },
+            "orders": { es: "pide / ordena", ipa: "/ˈɔːr.dərz/", approx: "órders" },
+            "warm": { es: "caliente / cálido", ipa: "/wɔːrm/", approx: "uórm" },
+            "cappuccino": { es: "capuchino", ipa: "/ˌkæp.əˈtʃiː.noʊ/", approx: "kapuchínou" },
+            "fresh": { es: "fresco", ipa: "/freʃ/", approx: "fresh" },
+            "croissant": { es: "cruasán", ipa: "/kwɑːˈsɒ̃/", approx: "kuasán" },
+            "window": { es: "ventana", ipa: "/ˈwɪn.doʊ/", approx: "uíndou" },
+            "while": { es: "mientras", ipa: "/waɪl/", approx: "uáil" },
+            "sipping": { es: "bebiendo a sorbos", ipa: "/ˈsɪp.ɪŋ/", approx: "síping" },
+            "opens": { es: "abre", ipa: "/ˈoʊ.pənz/", approx: "óupens" },
+            "notebook": { es: "cuaderno", ipa: "/ˈnoʊt.bʊk/", approx: "nóutbuk" },
+            "writes": { es: "escribe", ipa: "/raɪts/", approx: "ráits" },
+            "down": { es: "abajo / anotar", ipa: "/daʊn/", approx: "dáun" },
+            "three": { es: "tres", ipa: "/θriː/", approx: "zrí" },
+            "simple": { es: "sencillo / simple", ipa: "/ˈsɪm.pəl/", approx: "símpol" },
+            "goals": { es: "metas / objetivos", ipa: "/ɡoʊlz/", approx: "góuls" },
+            "watching": { es: "observando / viendo", ipa: "/ˈwɒtʃ.ɪŋ/", approx: "uóching" },
+            "people": { es: "gente / personas", ipa: "/ˈpiː.pəl/", approx: "pípol" },
+            "pass": { es: "pasar", ipa: "/pɑːs/", approx: "pas" },
+            "dogs": { es: "perros", ipa: "/dɒɡz/", approx: "dogs" },
+            "makes": { es: "hace", ipa: "/meɪks/", approx: "méiks" },
+            "appreciate": { es: "apreciar", ipa: "/əˈpriː.ʃi.eɪt/", approx: "apríshieit" },
+            "little": { es: "pequeño / poco", ipa: "/ˈlɪt.əl/", approx: "lítol" },
+            "moments": { es: "momentos", ipa: "/ˈmoʊ.mənts/", approx: "móuments" },
+            "life": { es: "vida", ipa: "/laɪf/", approx: "láif" },
+            "world": { es: "mundo", ipa: "/wɜːrld/", approx: "uérld" },
+            "full": { es: "lleno", ipa: "/fʊl/", approx: "ful" },
+            "constant": { es: "constante", ipa: "/ˈkɒn.stənt/", approx: "kónstant" },
+            "notifications": { es: "notificaciones", ipa: "/ˌnoʊ.tɪ.fɪˈkeɪ.ʃənz/", approx: "noutifikéishons" },
+            "paying": { es: "prestando / pagando", ipa: "/ˈpeɪ.ɪŋ/", approx: "péiing" },
+            "attention": { es: "atención", ipa: "/əˈten.ʃən/", approx: "aténshon" },
+            "become": { es: "convertirse en", ipa: "/bɪˈkʌm/", approx: "bikám" },
+            "rare": { es: "raro / poco común", ipa: "/reər/", approx: "réar" },
+            "superpower": { es: "superpoder", ipa: "/ˈsuː.pərˌpaʊ.ər/", approx: "súperpauer" },
+            "whenever": { es: "cada vez que", ipa: "/wenˈev.ər/", approx: "uenéver" },
+            "switch": { es: "cambiar", ipa: "/swɪtʃ/", approx: "suích" },
+            "between": { es: "entre", ipa: "/bɪˈtwiːn/", approx: "bituín" },
+            "tasks": { es: "tareas", ipa: "/tɑːsks/", approx: "tasks" },
+            "brain": { es: "cerebro", ipa: "/breɪn/", approx: "bréin" },
+            "brains": { es: "cerebros", ipa: "/breɪnz/", approx: "bréins" },
+            "loses": { es: "pierde", ipa: "/ˈluː.zɪz/", approx: "lúzis" },
+            "valuable": { es: "valioso/a", ipa: "/ˈvæl.ju.ə.bəl/", approx: "váliuabol" },
+            "energy": { es: "energía", ipa: "/ˈen.ər.dʒi/", approx: "éner-yi" },
+            "trying": { es: "intentando", ipa: "/ˈtraɪ.ɪŋ/", approx: "tráiing" },
+            "refocus": { es: "volver a enfocarse", ipa: "/ˌriːˈfoʊ.kəs/", approx: "rifóukas" },
+            "researchers": { es: "investigadores", ipa: "/rɪˈsɜːr.tʃərz/", approx: "risérchers" },
+            "suggest": { es: "sugieren", ipa: "/səˈdʒest/", approx: "sayést" },
+            "working": { es: "trabajando", ipa: "/ˈwɜːr.kɪŋ/", approx: "uérking" },
+            "uninterrupted": { es: "ininterrumpido", ipa: "/ˌʌn.ɪn.təˈrʌp.tɪd/", approx: "aninteráptid" },
+            "blocks": { es: "bloques", ipa: "/blɒks/", approx: "bloks" },
+            "forty": { es: "cuarenta", ipa: "/ˈfɔːr.ti/", approx: "fórti" },
+            "minutes": { es: "minutos", ipa: "/ˈmɪn.ɪts/", approx: "mínits" },
+            "followed": { es: "seguido", ipa: "/ˈfɒl.oʊd/", approx: "fóloud" },
+            "short": { es: "corto / breve", ipa: "/ʃɔːrt/", approx: "short" },
+            "break": { es: "descanso / pausa", ipa: "/breɪk/", approx: "bréik" },
+            "putting": { es: "poniendo", ipa: "/ˈpʊt.ɪŋ/", approx: "púting" },
+            "phone": { es: "teléfono", ipa: "/foʊn/", approx: "fóun" },
+            "another": { es: "otro/a", ipa: "/əˈnʌð.ər/", approx: "anáder" },
+            "room": { es: "habitación", ipa: "/ruːm/", approx: "rúm" },
+            "often": { es: "a menudo", ipa: "/ˈɒf.ən/", approx: "ófen" },
+            "easiest": { es: "el más fácil", ipa: "/ˈiː.zi.ɪst/", approx: "íziest" },
+            "way": { es: "forma / camino", ipa: "/weɪ/", approx: "uéi" },
+            "protect": { es: "proteger", ipa: "/prəˈtekt/", approx: "protékt" },
+            "mental": { es: "mental", ipa: "/ˈmen.təl/", approx: "méntal" },
+            "clarity": { es: "claridad", ipa: "/ˈklær.ə.ti/", approx: "kláriti" },
+            "over": { es: "sobre / con el tiempo", ipa: "/ˈoʊ.vər/", approx: "óuver" },
+            "time": { es: "tiempo", ipa: "/taɪm/", approx: "táim" },
+            "habits": { es: "hábitos", ipa: "/ˈhæb.ɪts/", approx: "jábits" },
+            "allow": { es: "permitir", ipa: "/əˈlaʊ/", approx: "aláu" },
+            "learn": { es: "aprender", ipa: "/lɜːrn/", approx: "lérn" },
+            "faster": { es: "más rápido", ipa: "/ˈfɑːs.tər/", approx: "fáster" },
+            "create": { es: "crear", ipa: "/kriˈeɪt/", approx: "kriéit" },
+            "meaningful": { es: "significativo", ipa: "/ˈmiː.nɪŋ.fəl/", approx: "míningful" },
+            "work": { es: "trabajo", ipa: "/wɜːrk/", approx: "uérk" },
+            "memorizing": { es: "memorizar", ipa: "/ˈmem.ə.raɪ.zɪŋ/", approx: "mémoraizing" },
+            "isolated": { es: "aislado", ipa: "/ˈaɪ.sə.leɪ.tɪd/", approx: "áisoleitid" },
+            "vocabulary": { es: "vocabulario", ipa: "/vəˈkæb.jʊ.lər.i/", approx: "vokábiuleri" },
+            "lists": { es: "listas", ipa: "/lɪsts/", approx: "lists" },
+            "rarely": { es: "rara vez", ipa: "/ˈreər.li/", approx: "réarli" },
+            "helps": { es: "ayuda", ipa: "/helps/", approx: "jelps" },
+            "speak": { es: "hablar", ipa: "/spiːk/", approx: "spík" },
+            "naturally": { es: "naturalmente", ipa: "/ˈnætʃ.ər.əl.i/", approx: "náchurali" },
+            "during": { es: "durante", ipa: "/ˈdjʊə.rɪŋ/", approx: "diúring" },
+            "real": { es: "real", ipa: "/rɪəl/", approx: "ríal" },
+            "conversation": { es: "conversación", ipa: "/ˌkɒn.vəˈseɪ.ʃən/", approx: "konverséishon" },
+            "instead": { es: "en cambio / en lugar de", ipa: "/ɪnˈsted/", approx: "instéd" },
+            "evolved": { es: "evolucionaron", ipa: "/ɪˈvɒlvd/", approx: "ivólvd" },
+            "remember": { es: "recordar", ipa: "/rɪˈmem.bər/", approx: "rimémber" },
+            "patterns": { es: "patrones", ipa: "/ˈpæt.ərnz/", approx: "páterns" },
+            "emotions": { es: "emociones", ipa: "/ɪˈmoʊ.ʃənz/", approx: "imóushons" },
+            "compelling": { es: "cautivador / convincente", ipa: "/kəmˈpel.ɪŋ/", approx: "kompéling" },
+            "narratives": { es: "narrativas / historias", ipa: "/ˈnær.ə.tɪvz/", approx: "nárativs" },
+            "read": { es: "leer", ipa: "/riːd/", approx: "ríd" },
+            "listen": { es: "escuchar", ipa: "/ˈlɪs.ən/", approx: "lísen" },
+            "same": { es: "mismo/a", ipa: "/seɪm/", approx: "séim" },
+            "sentence": { es: "oración / frase", ipa: "/ˈsen.təns/", approx: "séntens" },
+            "repeatedly": { es: "repetidamente", ipa: "/rɪˈpiː.tɪd.li/", approx: "ripítidli" },
+            "ear": { es: "oído / oreja", ipa: "/ɪər/", approx: "íar" },
+            "gradually": { es: "gradualmente", ipa: "/ˈɡrædʒ.u.ə.li/", approx: "grádiuali" },
+            "adapts": { es: "se adapta", ipa: "/əˈdæpts/", approx: "adápts" },
+            "natural": { es: "natural", ipa: "/ˈnætʃ.ər.əl/", approx: "náchural" },
+            "rhythm": { es: "ritmo", ipa: "/ˈrɪð.əm/", approx: "rídem" },
+            "curiosity": { es: "curiosidad", ipa: "/ˌkjʊə.riˈɒs.ə.ti/", approx: "kiuriósiti" },
+            "turns": { es: "convierte / gira", ipa: "/tɜːrnz/", approx: "térns" },
+            "difficult": { es: "difícil", ipa: "/ˈdɪf.ɪ.kəlt/", approx: "dífikolt" },
+            "study": { es: "estudio / estudiar", ipa: "/ˈstʌd.i/", approx: "stádi" },
+            "routine": { es: "rutina", ipa: "/ruːˈtiːn/", approx: "rutín" },
+            "enjoyable": { es: "agradable / disfrutable", ipa: "/ɪnˈdʒɔɪ.ə.bəl/", approx: "inyóiabol" },
+            "daily": { es: "diario", ipa: "/ˈdeɪ.li/", approx: "déili" },
+            "adventure": { es: "aventura", ipa: "/ədˈven.tʃər/", approx: "advéncher" },
+            "the": { es: "el / la / los / las", ipa: "/ðə/", approx: "de / di" },
+            "and": { es: "y", ipa: "/ænd/", approx: "and" },
+            "to": { es: "a / hacia / para", ipa: "/tuː/", approx: "tu" },
+            "of": { es: "de", ipa: "/ɒv/", approx: "ov" },
+            "in": { es: "en", ipa: "/ɪn/", approx: "in" },
+            "is": { es: "es / está", ipa: "/ɪz/", approx: "iz" },
+            "are": { es: "son / están", ipa: "/ɑːr/", approx: "ar" },
+            "a": { es: "un / una", ipa: "/ə/", approx: "a" },
+            "an": { es: "un / una", ipa: "/æn/", approx: "an" },
+            "she": { es: "ella", ipa: "/ʃiː/", approx: "shi" },
+            "her": { es: "su (de ella)", ipa: "/hɜːr/", approx: "jer" },
+            "you": { es: "tú / usted", ipa: "/juː/", approx: "iu" },
+            "your": { es: "tu / su", ipa: "/jʊər/", approx: "ior" },
+            "with": { es: "con", ipa: "/wɪð/", approx: "uid" },
+            "their": { es: "su (de ellos)", ipa: "/ðeər/", approx: "dear" },
+            "by": { es: "por / junto a", ipa: "/baɪ/", approx: "bai" },
+            "has": { es: "ha / tiene", ipa: "/hæz/", approx: "jaz" },
+            "when": { es: "cuando", ipa: "/wen/", approx: "uén" },
+            "our": { es: "nuestro/a", ipa: "/ˈaʊ.ər/", approx: "áuer" },
+            "these": { es: "estos / estas", ipa: "/ðiːz/", approx: "dis" },
+            "more": { es: "más", ipa: "/mɔːr/", approx: "mor" },
+            "into": { es: "en / hacia dentro", ipa: "/ˈɪn.tuː/", approx: "íntu" }
+        };
+
+        /* =========================================================================
+           3. ESTADO DE LA APLICACIÓN (PERSISTENTE EN LOCALSTORAGE)
+           ========================================================================= */
+        const STORAGE_KEY = 'fluentread_state_v3';
+        let state = {
+            lessons: [...DEFAULT_LESSONS],
+            currentLessonId: DEFAULT_LESSONS[0].id,
+            wordData: {},
+            showSpanish: false,
+            showPhonetics: false,
+            speed: 1.0,
+            accent: 'en-US',
+            theme: 'light',
+            currentView: 'home',
+            homeLevelFilter: 'ALL',
+            aiSelectedLevel: 'A2',
+            selectedWord: null,
+            selectedTokenIdx: null,
+            selectedSentenceIdx: 0,
+            playingSentenceIdx: null,
+            isPlayingAll: false,
+            loopSentence: false,
+            vocabFilter: 'learning'
+        };
+
+        function loadState() {
+            try {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    if (parsed.wordData) state.wordData = parsed.wordData;
+                    if (parsed.theme) state.theme = parsed.theme;
+                    if (parsed.speed) state.speed = parsed.speed;
+                    if (parsed.accent) state.accent = parsed.accent;
+                    if (Array.isArray(parsed.customLessons) && parsed.customLessons.length) {
+                        const existingIds = new Set(DEFAULT_LESSONS.map(l => l.id));
+                        const extras = parsed.customLessons.filter(l => !existingIds.has(l.id));
+                        state.lessons = [...DEFAULT_LESSONS, ...extras];
+                    }
+                }
+            } catch (err) {
+                console.warn('No se pudo cargar el estado guardado:', err);
+            }
+        }
+
+        function saveState() {
+            try {
+                const defaultIds = new Set(DEFAULT_LESSONS.map(l => l.id));
+                const customLessons = state.lessons.filter(l => !defaultIds.has(l.id));
+                localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                    wordData: state.wordData,
+                    theme: state.theme,
+                    speed: state.speed,
+                    accent: state.accent,
+                    customLessons
+                }));
+            } catch (err) {
+                console.warn('No se pudo guardar el estado:', err);
+            }
+        }
+
+        /* =========================================================================
+           4. UTILIDADES DE FONÉTICA EN ESPAÑOL Y TRADUCCIÓN AUTOMÁTICA
+           ========================================================================= */
+        function approxSpanishPhonetics(word) {
+            const clean = word.toLowerCase().replace(/[^a-z']/g, '');
+            if (!clean) return word;
+            if (BUILTIN_DICT[clean] && BUILTIN_DICT[clean].approx) {
+                return BUILTIN_DICT[clean].approx;
+            }
+            let p = clean
+                .replace(/tion\b/g, 'shon')
+                .replace(/sion\b/g, 'shon')
+                .replace(/ight/g, 'áit')
+                .replace(/ough/g, 'of')
+                .replace(/ee/g, 'í')
+                .replace(/oo/g, 'ú')
+                .replace(/ea/g, 'í')
+                .replace(/ai/g, 'éi')
+                .replace(/ay/g, 'éi')
+                .replace(/ou/g, 'áu')
+                .replace(/ow\b/g, 'ou')
+                .replace(/sh/g, 'sh')
+                .replace(/ch/g, 'ch')
+                .replace(/ph/g, 'f')
+                .replace(/th/g, 'd')
+                .replace(/wh/g, 'u')
+                .replace(/^w/g, 'u')
+                .replace(/^h/g, 'j')
+                .replace(/ck/g, 'k')
+                .replace(/c(?=[aou])/g, 'k')
+                .replace(/qu/g, 'ku')
+                .replace(/y\b/g, 'i')
+                .replace(/e\b/g, '');
+            return p || clean;
+        }
+
+        function generateSentencePhonetic(sentenceEn) {
+            const tokens = sentenceEn.match(/[A-Za-z']+|[^A-Za-z']+/g) || [];
+            const mapped = tokens.map((tok, idx) => {
+                if (!/^[A-Za-z']+$/.test(tok)) return tok;
+                const lower = tok.toLowerCase();
+                let ph = approxSpanishPhonetics(lower);
+                if (lower === 'the') {
+                    // "di" antes de vocal, "de" antes de consonante
+                    const nextWord = tokens.slice(idx + 1).find(t => /^[A-Za-z']+$/.test(t)) || '';
+                    ph = /^[aeiou]/i.test(nextWord) ? 'di' : 'de';
+                }
+                if (tok[0] === tok[0].toUpperCase() && tok[0] !== tok[0].toLowerCase()) {
+                    ph = ph.charAt(0).toUpperCase() + ph.slice(1);
+                }
+                return ph;
+            });
+            return mapped.join('');
+        }
+
+        async function translateEnToEs(text) {
+            try {
+                const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|es`;
+                const res = await fetch(url);
+                if (!res.ok) return null;
+                const data = await res.json();
+                if (data && data.responseData && data.responseData.translatedText) {
+                    return data.responseData.translatedText;
+                }
+            } catch (e) {
+                console.warn('Error traduciendo:', e);
+            }
+            return null;
+        }
+
+        /* =========================================================================
+           5. NAVEGACIÓN ENTRE VISTAS Y BIBLIOTECA PRINCIPAL (TARJETAS A1-B2)
+           ========================================================================= */
+        function switchView(view) {
+            state.currentView = view;
+            stopAudio();
+
+            const viewHome = document.getElementById('view-home');
+            const viewReader = document.getElementById('view-reader');
+            const viewVocab = document.getElementById('view-vocab');
+            const toolbar = document.getElementById('reader-toolbar');
+
+            viewHome.classList.toggle('hidden', view !== 'home');
+            viewReader.classList.toggle('hidden', view !== 'reader');
+            viewVocab.classList.toggle('hidden', view !== 'vocab');
+            toolbar.classList.toggle('hidden', view !== 'reader');
+
+            const activeCls = 'px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-sm';
+            const inactiveCls = 'px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white';
+
+            document.getElementById('tab-home').className = view === 'home' ? activeCls : inactiveCls;
+            document.getElementById('tab-reader').className = view === 'reader' ? activeCls : inactiveCls;
+            document.getElementById('tab-vocab').className = (view === 'vocab' ? activeCls : inactiveCls) + ' flex items-center gap-1.5';
+
+            if (view === 'home') renderHome();
+            if (view === 'reader') renderLesson();
+            if (view === 'vocab') renderVocabGrid();
+        }
+
+        function setHomeLevelFilter(level) {
+            state.homeLevelFilter = level;
+            document.querySelectorAll('.level-filter-btn').forEach(btn => {
+                const isSelected = btn.dataset.filter === level;
+                btn.className = isSelected
+                    ? 'level-filter-btn px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-indigo-600 text-white shadow-sm transition-all'
+                    : 'level-filter-btn px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:border-indigo-400 transition-all';
+            });
+            renderHome();
+        }
+
+        function getLessonLevelCode(lesson) {
+            if (lesson.levelCode) return lesson.levelCode;
+            const m = (lesson.level || '').match(/A1|A2|B1|B2/i);
+            return m ? m[0].toUpperCase() : 'B1';
+        }
+
+        function renderHome() {
+            const grid = document.getElementById('stories-grid');
+            const countEl = document.getElementById('home-story-count');
+
+            const sorted = [...state.lessons].sort((a, b) => {
+                const la = LEVEL_ORDER[getLessonLevelCode(a)] || 99;
+                const lb = LEVEL_ORDER[getLessonLevelCode(b)] || 99;
+                return la - lb;
+            });
+
+            const filtered = state.homeLevelFilter === 'ALL'
+                ? sorted
+                : sorted.filter(l => getLessonLevelCode(l) === state.homeLevelFilter);
+
+            countEl.textContent = `${filtered.length} ${filtered.length === 1 ? 'historia' : 'historias'}`;
+
+            const badgeStyles = {
+                'A1': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300',
+                'A2': 'bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300',
+                'B1': 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300',
+                'B2': 'bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300'
+            };
+
+            if (!filtered.length) {
+                grid.innerHTML = `
+                    <div class="col-span-full text-center py-14 bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700">
+                        <p class="text-sm font-semibold text-slate-600 dark:text-slate-300">No hay historias para el nivel ${state.homeLevelFilter} todavía.</p>
+                        <button onclick="openAIModal('${state.homeLevelFilter}')" class="mt-3 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold">✨ Crear una historia ${state.homeLevelFilter} con IA</button>
+                    </div>
+                `;
+                return;
+            }
+
+            grid.innerHTML = filtered.map(lesson => {
+                const code = getLessonLevelCode(lesson);
+                const preview = lesson.sentences[0] ? lesson.sentences[0].en : '';
+                const wordCount = lesson.sentences.reduce((acc, s) => acc + (s.en.match(/[A-Za-z']+/g) || []).length, 0);
+                const isAI = lesson.isAI;
+
+                return `
+                    <article onclick="openLesson('${lesson.id}')" class="group cursor-pointer bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-500 p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between gap-4 surface-card">
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between gap-2">
+                                <span class="px-2.5 py-1 rounded-lg text-xs font-bold ${badgeStyles[code] || badgeStyles['B1']}">
+                                    Nivel ${code}
+                                </span>
+                                <div class="flex items-center gap-1.5">
+                                    ${isAI ? '<span class="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-indigo-50 text-indigo-600 dark:bg-indigo-900/50 dark:text-indigo-300">✨ IA</span>' : ''}
+                                    <span class="text-[11px] font-medium text-slate-400">${lesson.category || 'Lectura'}</span>
+                                </div>
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-bold font-serif text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors leading-snug">
+                                    ${escapeHtml(lesson.title)}
+                                </h3>
+                                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1.5 line-clamp-2">
+                                    ${escapeHtml(lesson.description || preview)}
+                                </p>
+                            </div>
+                            <p class="text-xs font-serif italic text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/70 px-3 py-2 rounded-xl line-clamp-2">
+                                “${escapeHtml(preview)}”
+                            </p>
+                        </div>
+                        <div class="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800 text-xs">
+                            <span class="text-slate-400 font-medium">${lesson.sentences.length} oraciones · ${wordCount} palabras</span>
+                            <span class="font-semibold text-indigo-600 dark:text-indigo-400 group-hover:translate-x-0.5 transition-transform">Leer →</span>
+                        </div>
+                    </article>
+                `;
+            }).join('');
+        }
+
+        function openLesson(lessonId) {
+            state.currentLessonId = lessonId;
+            populateLessonSelector();
+            switchView('reader');
+            loadLesson(lessonId);
+        }
+
+        function escapeHtml(str) {
+            return String(str || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        /* =========================================================================
+           6. LECTOR INTERACTIVO (ORACIONES, PALABRAS Y ESTADOS)
+           ========================================================================= */
+        function getCurrentLesson() {
+            return state.lessons.find(l => l.id === state.currentLessonId) || state.lessons[0];
+        }
+
+        function populateLessonSelector() {
+            const sel = document.getElementById('lesson-selector');
+            if (!sel) return;
+            const sorted = [...state.lessons].sort((a, b) => {
+                return (LEVEL_ORDER[getLessonLevelCode(a)] || 99) - (LEVEL_ORDER[getLessonLevelCode(b)] || 99);
+            });
+            sel.innerHTML = sorted.map(l =>
+                `<option value="${l.id}" ${l.id === state.currentLessonId ? 'selected' : ''}>[${getLessonLevelCode(l)}] ${escapeHtml(l.title)}</option>`
+            ).join('');
+        }
+
+        function loadLesson(lessonId) {
+            stopAudio();
+            state.currentLessonId = lessonId;
+            state.selectedSentenceIdx = 0;
+            state.selectedWord = null;
+            state.selectedTokenIdx = null;
+            populateLessonSelector();
+            renderLesson();
+            selectSentence(0);
+            resetInspector();
+        }
+
+        function isLearningStatus(status) {
+            return ['learning', 'level-1', 'level-2', 'level-3', 'level-4'].includes(status);
+        }
+
+        function getWordStatus(normalized) {
+            const raw = state.wordData[normalized] && state.wordData[normalized].status;
+            if (raw === 'learning') return 'level-1';
+            return raw || 'new';
+        }
+
+        function renderLesson() {
+            const lesson = getCurrentLesson();
+            if (!lesson) return;
+
+            document.getElementById('lesson-title').textContent = lesson.title;
+            document.getElementById('lesson-level').textContent = lesson.level || `Nivel ${getLessonLevelCode(lesson)}`;
+            document.getElementById('lesson-category').textContent = lesson.category || 'Lectura';
+
+            const container = document.getElementById('sentences-container');
+            container.innerHTML = '';
+            let tokenCounter = 0;
+
+            lesson.sentences.forEach((sent, sIdx) => {
+                const block = document.createElement('div');
+                block.id = `sentence-block-${sIdx}`;
+                block.className = `sentence-block group relative pl-12 pr-3 py-3 rounded-xl border-l-4 border-transparent hover:bg-slate-50/80 dark:hover:bg-slate-800/40 cursor-pointer ${state.playingSentenceIdx === sIdx ? 'sentence-playing' : ''}`;
+                block.onclick = () => selectSentence(sIdx);
+
+                // Botón individual de reproducir UNA sola oración
+                const playBtn = document.createElement('button');
+                playBtn.type = 'button';
+                playBtn.title = 'Reproducir solo esta oración';
+                playBtn.className = 'absolute left-2 top-3.5 w-8 h-8 rounded-full bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-600 hover:text-white flex items-center justify-center transition-colors shadow-sm';
+                playBtn.innerHTML = `<svg class="w-3.5 h-3.5 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>`;
+                playBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    selectSentence(sIdx);
+                    playSingleSentence(sIdx);
+                };
+                block.appendChild(playBtn);
+
+                // Párrafo en inglés con tokens clicables
+                const enPara = document.createElement('p');
+                enPara.className = 'font-serif text-lg sm:text-xl leading-relaxed text-slate-900 dark:text-slate-100';
+
+                const tokens = sent.en.match(/[A-Za-z']+|[^A-Za-z']+/g) || [];
+                tokens.forEach(tok => {
+                    if (/^[A-Za-z']+$/.test(tok)) {
+                        const norm = tok.toLowerCase();
+                        const status = getWordStatus(norm);
+                        const currentTokenIdx = tokenCounter++;
+                        const span = document.createElement('span');
+                        span.textContent = tok;
+                        span.dataset.word = norm;
+                        span.dataset.tokenIdx = currentTokenIdx;
+                        span.dataset.sentIdx = sIdx;
+                        span.className = `word-token word-${status}`;
+                        if (state.selectedTokenIdx === currentTokenIdx) {
+                            span.classList.add('word-selected');
+                        }
+                        span.onclick = (e) => {
+                            e.stopPropagation();
+                            selectWordByTokenIdx(currentTokenIdx);
+                        };
+                        enPara.appendChild(span);
+                    } else {
+                        enPara.appendChild(document.createTextNode(tok));
+                    }
+                });
+                block.appendChild(enPara);
+
+                // Línea de Fonética en español (si está activada)
+                if (state.showPhonetics) {
+                    const phText = sent.phonetic || generateSentencePhonetic(sent.en);
+                    sent.phonetic = phText;
+                    const phEl = document.createElement('p');
+                    phEl.className = 'mt-1.5 text-sm font-medium text-violet-700 dark:text-violet-300 bg-violet-50/70 dark:bg-violet-950/40 inline-block px-2.5 py-1 rounded-lg';
+                    phEl.textContent = `🗣️ ${phText}`;
+                    block.appendChild(phEl);
+                }
+
+                // Línea de Traducción al Español (si está activada)
+                if (state.showSpanish) {
+                    const esEl = document.createElement('p');
+                    esEl.id = `sentence-es-${sIdx}`;
+                    esEl.className = 'mt-1.5 text-sm text-slate-500 dark:text-slate-400 italic';
+                    esEl.textContent = sent.es || 'Traduciendo al español...';
+                    block.appendChild(esEl);
+
+                    if (!sent.es) {
+                        translateEnToEs(sent.en).then(tr => {
+                            sent.es = tr || '(No se pudo obtener traducción automática)';
+                            const target = document.getElementById(`sentence-es-${sIdx}`);
+                            if (target) target.textContent = sent.es;
+                            if (state.selectedSentenceIdx === sIdx) updateActiveSentenceCard();
+                        });
+                    }
+                }
+
+                container.appendChild(block);
+            });
+
+            updateActiveSentenceCard();
+        }
+
+        /* =========================================================================
+           7. BOTONES PRINCIPALES: TRADUCIR A ESPAÑOL Y FONÉTICA
+           ========================================================================= */
+        function toggleSpanishTranslation() {
+            state.showSpanish = !state.showSpanish;
+            const btn = document.getElementById('btn-toggle-es');
+            if (state.showSpanish) {
+                btn.className = 'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold border transition-all bg-indigo-600 border-indigo-600 text-white shadow-sm';
+            } else {
+                btn.className = 'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold border transition-all bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-indigo-400';
+            }
+            renderLesson();
+        }
+
+        function togglePhonetics() {
+            state.showPhonetics = !state.showPhonetics;
+            const btn = document.getElementById('btn-toggle-phonetics');
+            if (state.showPhonetics) {
+                btn.className = 'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold border transition-all bg-violet-600 border-violet-600 text-white shadow-sm';
+            } else {
+                btn.className = 'flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold border transition-all bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-violet-400';
+            }
+            renderLesson();
+        }
+
+        /* =========================================================================
+           8. INSPECTOR DE PALABRA + 4 NIVELES AMARILLOS
+           ========================================================================= */
+        function resetInspector() {
+            document.getElementById('inspector-empty').classList.remove('hidden');
+            document.getElementById('inspector-content').classList.add('hidden');
+        }
+
+        function selectWordByTokenIdx(tokenIdx, shouldScroll = false) {
+            const allTokens = document.querySelectorAll('#sentences-container .word-token');
+            if (!allTokens.length) return;
+            const clampedIdx = Math.max(0, Math.min(tokenIdx, allTokens.length - 1));
+            const targetEl = allTokens[clampedIdx];
+            if (!targetEl) return;
+
+            state.selectedTokenIdx = clampedIdx;
+            const sentIdx = parseInt(targetEl.dataset.sentIdx, 10) || 0;
+            selectSentence(sentIdx);
+
+            if (shouldScroll) {
+                targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+
+            inspectWord(targetEl.textContent, targetEl.dataset.word, clampedIdx);
+        }
+
+        async function inspectWord(displayWord, normalized, tokenIdx = null) {
+            state.selectedWord = normalized;
+            if (tokenIdx !== null) state.selectedTokenIdx = tokenIdx;
+
+            document.querySelectorAll('.word-token').forEach(el => {
+                const isExact = state.selectedTokenIdx !== null
+                    ? parseInt(el.dataset.tokenIdx, 10) === state.selectedTokenIdx
+                    : el.dataset.word === normalized;
+                el.classList.toggle('word-selected', isExact);
+            });
+
+            document.getElementById('inspector-empty').classList.add('hidden');
+            document.getElementById('inspector-content').classList.remove('hidden');
+
+            const dictEntry = BUILTIN_DICT[normalized] || {};
+            const savedEntry = state.wordData[normalized] || {};
+
+            const approx = savedEntry.approx || dictEntry.approx || approxSpanishPhonetics(normalized);
+            const ipa = savedEntry.ipa || dictEntry.ipa || '';
+            const status = getWordStatus(normalized);
+
+            document.getElementById('insp-word').textContent = displayWord;
+            document.getElementById('insp-approx').textContent = `🗣️ ${approx}`;
+            document.getElementById('insp-ipa').textContent = ipa;
+
+            const meaningInput = document.getElementById('insp-meaning');
+            meaningInput.value = savedEntry.es || dictEntry.es || '';
+
+            updateStatusButtons(status);
+            speakText(displayWord);
+
+            // Si no tenemos traducción local, consultamos en línea
+            if (!meaningInput.value) {
+                meaningInput.placeholder = 'Buscando traducción...';
+                const translated = await translateEnToEs(normalized);
+                if (state.selectedWord === normalized) {
+                    meaningInput.placeholder = 'Significado en español...';
+                    if (translated && !meaningInput.value) {
+                        meaningInput.value = translated.toLowerCase();
+                    }
+                }
+            }
+        }
+
+        function setWordStatus(status) {
+            if (!state.selectedWord) return;
+            const norm = state.selectedWord;
+            const dictEntry = BUILTIN_DICT[norm] || {};
+            const existing = state.wordData[norm] || {};
+            const meaningVal = document.getElementById('insp-meaning').value.trim();
+
+            state.wordData[norm] = {
+                status,
+                es: meaningVal || existing.es || dictEntry.es || '',
+                ipa: existing.ipa || dictEntry.ipa || '',
+                approx: existing.approx || dictEntry.approx || approxSpanishPhonetics(norm)
+            };
+
+            document.querySelectorAll(`.word-token[data-word="${norm}"]`).forEach(el => {
+                el.classList.remove('word-new', 'word-learning', 'word-level-1', 'word-level-2', 'word-level-3', 'word-level-4', 'word-known');
+                el.classList.add(`word-${status}`);
+            });
+
+            updateStatusButtons(status);
+            updateStats();
+            saveState();
+
+            const labels = {
+                'new': 'Nueva (Azul)',
+                'level-1': 'Amarillo Nivel 1',
+                'level-2': 'Amarillo Nivel 2',
+                'level-3': 'Amarillo Nivel 3',
+                'level-4': 'Amarillo Nivel 4',
+                'known': 'Conocida'
+            };
+            showToast(`"${norm}" → ${labels[status] || status}`);
+        }
+
+        function saveCustomMeaning() {
+            if (!state.selectedWord) return;
+            const currentStatus = getWordStatus(state.selectedWord);
+            setWordStatus(currentStatus === 'new' ? 'level-1' : currentStatus);
+        }
+
+        function updateStatusButtons(activeStatus) {
+            const normalizedStatus = activeStatus === 'learning' ? 'level-1' : activeStatus;
+            const levelNames = {
+                'new': 'Azul · Nueva',
+                'level-1': 'Amarillo · Nivel 1',
+                'level-2': 'Amarillo · Nivel 2',
+                'level-3': 'Amarillo · Nivel 3',
+                'level-4': 'Amarillo · Nivel 4',
+                'known': 'Verde · Conocida'
+            };
+            const labelEl = document.getElementById('insp-level-label');
+            if (labelEl) labelEl.textContent = levelNames[normalizedStatus] || '';
+
+            const styles = {
+                'level-1': normalizedStatus === 'level-1'
+                    ? 'bg-amber-400/50 border-amber-600 text-amber-950 dark:bg-amber-600/60 dark:border-amber-400 dark:text-amber-50 ring-2 ring-amber-400/60'
+                    : 'bg-amber-50/70 dark:bg-slate-800 border-amber-200 dark:border-slate-700 text-amber-800 dark:text-amber-300 hover:border-amber-400',
+                'level-2': normalizedStatus === 'level-2'
+                    ? 'bg-yellow-300/60 border-yellow-500 text-yellow-950 dark:bg-yellow-500/50 dark:border-yellow-300 dark:text-yellow-50 ring-2 ring-yellow-400/60'
+                    : 'bg-yellow-50/70 dark:bg-slate-800 border-yellow-200 dark:border-slate-700 text-yellow-800 dark:text-yellow-300 hover:border-yellow-400',
+                'level-3': normalizedStatus === 'level-3'
+                    ? 'bg-yellow-200/80 border-yellow-400 text-yellow-900 dark:bg-yellow-400/35 dark:border-yellow-300 dark:text-yellow-100 ring-2 ring-yellow-300/60'
+                    : 'bg-yellow-50/40 dark:bg-slate-800 border-yellow-200/80 dark:border-slate-700 text-yellow-700 dark:text-yellow-200 hover:border-yellow-400',
+                'level-4': normalizedStatus === 'level-4'
+                    ? 'bg-yellow-100 border-yellow-400 border-dashed text-yellow-900 dark:bg-yellow-300/20 dark:border-yellow-300 dark:text-yellow-100 ring-2 ring-yellow-200/70'
+                    : 'bg-slate-50 dark:bg-slate-800 border-yellow-200/60 dark:border-slate-700 text-slate-600 dark:text-yellow-100/80 hover:border-yellow-300',
+                'new': normalizedStatus === 'new'
+                    ? 'bg-blue-100 border-blue-500 text-blue-800 dark:bg-blue-900/60 dark:text-blue-200'
+                    : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300',
+                'known': normalizedStatus === 'known'
+                    ? 'bg-emerald-100 border-emerald-500 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200'
+                    : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+            };
+
+            ['level-1', 'level-2', 'level-3', 'level-4'].forEach(st => {
+                const btn = document.getElementById(`status-btn-${st}`);
+                if (btn) btn.className = `py-2 px-1 rounded-xl text-xs font-bold border transition-all flex flex-col items-center ${styles[st]}`;
+            });
+            ['new', 'known'].forEach(st => {
+                const btn = document.getElementById(`status-btn-${st}`);
+                if (btn) btn.className = `py-2 px-2 rounded-xl text-xs font-semibold border transition-all ${styles[st]}`;
+            });
+        }
+
+        function markRemainingAsKnown() {
+            const lesson = getCurrentLesson();
+            if (!lesson) return;
+            let count = 0;
+            lesson.sentences.forEach(sent => {
+                const words = sent.en.match(/[A-Za-z']+/g) || [];
+                words.forEach(w => {
+                    const norm = w.toLowerCase();
+                    if (getWordStatus(norm) === 'new') {
+                        const dict = BUILTIN_DICT[norm] || {};
+                        state.wordData[norm] = {
+                            status: 'known',
+                            es: dict.es || '',
+                            ipa: dict.ipa || '',
+                            approx: dict.approx || approxSpanishPhonetics(norm)
+                        };
+                        count++;
+                    }
+                });
+            });
+            renderLesson();
+            updateStats();
+            saveState();
+            showToast(`✓ ${count} palabras marcadas como conocidas`);
+        }
+
+        function updateStats() {
+            let known = 0;
+            let learning = 0;
+            Object.values(state.wordData).forEach(w => {
+                if (w.status === 'known') known++;
+                if (isLearningStatus(w.status)) learning++;
+            });
+            document.getElementById('stat-known').textContent = known;
+            document.getElementById('stat-learning').textContent = learning;
+            document.getElementById('badge-learning-count').textContent = learning;
+        }
+
+        /* =========================================================================
+           9. AUDIO: ORACIÓN INDIVIDUAL, BUCLE, TODO, VELOCIDAD Y ACENTO
+           ========================================================================= */
+        function selectSentence(sIdx) {
+            state.selectedSentenceIdx = sIdx;
+            updateActiveSentenceCard();
+        }
+
+        function updateActiveSentenceCard() {
+            const lesson = getCurrentLesson();
+            if (!lesson || !lesson.sentences[state.selectedSentenceIdx]) return;
+            const sent = lesson.sentences[state.selectedSentenceIdx];
+
+            document.getElementById('active-sentence-num').textContent = `#${state.selectedSentenceIdx + 1} / ${lesson.sentences.length}`;
+            document.getElementById('active-sentence-en').textContent = sent.en;
+
+            const ipaEl = document.getElementById('active-sentence-ipa');
+            const phText = sent.phonetic || generateSentencePhonetic(sent.en);
+            ipaEl.textContent = `🗣️ ${phText}`;
+            ipaEl.classList.toggle('hidden', !state.showPhonetics);
+
+            const esEl = document.getElementById('active-sentence-es');
+            esEl.textContent = sent.es || '';
+            esEl.classList.toggle('hidden', !state.showSpanish || !sent.es);
+        }
+
+        function getPreferredVoice() {
+            const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+            if (!voices.length) return null;
+            return voices.find(v => v.lang === state.accent)
+                || voices.find(v => v.lang.startsWith(state.accent.slice(0, 2)))
+                || voices[0];
+        }
+
+        function speakText(text, onEnd = null) {
+            if (!('speechSynthesis' in window)) {
+                showToast('Tu navegador no soporta síntesis de voz.');
+                return;
+            }
+            window.speechSynthesis.cancel();
+            const utter = new SpeechSynthesisUtterance(text);
+            utter.lang = state.accent;
+            utter.rate = state.speed;
+            const voice = getPreferredVoice();
+            if (voice) utter.voice = voice;
+            if (onEnd) utter.onend = onEnd;
+            window.speechSynthesis.speak(utter);
+        }
+
+        function speakSelectedWord() {
+            if (!state.selectedWord) return;
+            speakText(state.selectedWord);
+        }
+
+        function highlightPlayingSentence(sIdx) {
+            state.playingSentenceIdx = sIdx;
+            document.querySelectorAll('.sentence-block').forEach((el, i) => {
+                el.classList.toggle('sentence-playing', i === sIdx);
+            });
+        }
+
+        function playSingleSentence(sIdx) {
+            const lesson = getCurrentLesson();
+            if (!lesson || !lesson.sentences[sIdx]) return;
+            state.isPlayingAll = false;
+            updatePlayAllButton();
+            highlightPlayingSentence(sIdx);
+
+            speakText(lesson.sentences[sIdx].en, () => {
+                if (state.loopSentence && state.selectedSentenceIdx === sIdx && !state.isPlayingAll) {
+                    setTimeout(() => {
+                        if (state.loopSentence && state.selectedSentenceIdx === sIdx) {
+                            playSingleSentence(sIdx);
+                        }
+                    }, 350);
+                } else if (!state.isPlayingAll) {
+                    highlightPlayingSentence(null);
+                }
+            });
+        }
+
+        function playSelectedSentence() {
+            playSingleSentence(state.selectedSentenceIdx);
+        }
+
+        function toggleLoopSentence() {
+            state.loopSentence = !state.loopSentence;
+            const btn = document.getElementById('btn-loop-sentence');
+            if (state.loopSentence) {
+                btn.className = 'py-2.5 px-3 rounded-xl border border-indigo-600 bg-indigo-50 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-200 text-xs font-semibold transition-colors flex items-center gap-1';
+                showToast('🔁 Bucle activado para esta oración');
+                playSingleSentence(state.selectedSentenceIdx);
+            } else {
+                btn.className = 'py-2.5 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:border-indigo-400 text-xs font-semibold transition-colors flex items-center gap-1';
+                showToast('Bucle desactivado');
+            }
+        }
+
+        function togglePlayAll() {
+            if (state.isPlayingAll) {
+                stopAudio();
+                return;
+            }
+            const lesson = getCurrentLesson();
+            if (!lesson || !lesson.sentences.length) return;
+            state.isPlayingAll = true;
+            state.loopSentence = false;
+            updatePlayAllButton();
+            playSequenceFrom(state.selectedSentenceIdx || 0);
+        }
+
+        function playSequenceFrom(sIdx) {
+            const lesson = getCurrentLesson();
+            if (!state.isPlayingAll || !lesson || sIdx >= lesson.sentences.length) {
+                stopAudio();
+                return;
+            }
+            selectSentence(sIdx);
+            highlightPlayingSentence(sIdx);
+            speakText(lesson.sentences[sIdx].en, () => {
+                if (state.isPlayingAll) {
+                    playSequenceFrom(sIdx + 1);
+                }
+            });
+        }
+
+        function stopAudio() {
+            state.isPlayingAll = false;
+            state.loopSentence = false;
+            if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+            highlightPlayingSentence(null);
+            updatePlayAllButton();
+            const loopBtn = document.getElementById('btn-loop-sentence');
+            if (loopBtn) {
+                loopBtn.className = 'py-2.5 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:border-indigo-400 text-xs font-semibold transition-colors flex items-center gap-1';
+            }
+        }
+
+        function updatePlayAllButton() {
+            const label = document.getElementById('label-play-all');
+            const icon = document.getElementById('icon-play-all');
+            if (!label || !icon) return;
+            if (state.isPlayingAll) {
+                label.textContent = 'Detener';
+                icon.innerHTML = '<rect x="6" y="6" width="12" height="12" rx="2"/>';
+            } else {
+                label.textContent = 'Escuchar Todo';
+                icon.innerHTML = '<path d="M8 5v14l11-7z"/>';
+            }
+        }
+
+        function cycleSpeed() {
+            const speeds = [0.7, 0.85, 1.0, 1.15];
+            const idx = speeds.indexOf(state.speed);
+            state.speed = speeds[(idx + 1) % speeds.length];
+            document.getElementById('btn-speed').textContent = `${state.speed.toFixed(state.speed === 1 ? 1 : 2).replace(/0$/, '')}x`;
+            saveState();
+            showToast(`Velocidad de audio: ${state.speed}x`);
+        }
+
+        function toggleAccent() {
+            state.accent = state.accent === 'en-US' ? 'en-GB' : 'en-US';
+            document.getElementById('btn-accent').textContent = state.accent === 'en-US' ? '🇺🇸 US' : '🇬🇧 UK';
+            saveState();
+            showToast(state.accent === 'en-US' ? 'Acento: Inglés Estadounidense (US)' : 'Acento: Inglés Británico (UK)');
+        }
+
+        /* =========================================================================
+           10. VISTA DE VOCABULARIO
+           ========================================================================= */
+        function filterVocab(filter) {
+            state.vocabFilter = filter;
+            document.getElementById('vfilter-learning').className = filter === 'learning'
+                ? 'px-3.5 py-2 rounded-xl text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200'
+                : 'px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300';
+            document.getElementById('vfilter-known').className = filter === 'known'
+                ? 'px-3.5 py-2 rounded-xl text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200'
+                : 'px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300';
+            renderVocabGrid();
+        }
+
+        function renderVocabGrid() {
+            const grid = document.getElementById('vocab-grid');
+            const entries = Object.entries(state.wordData).filter(([_, data]) =>
+                state.vocabFilter === 'learning' ? isLearningStatus(data.status) : data.status === 'known'
+            );
+
+            if (!entries.length) {
+                grid.innerHTML = `
+                    <div class="col-span-full text-center py-14 bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700">
+                        <p class="text-sm font-medium text-slate-600 dark:text-slate-300">No hay palabras en esta categoría todavía.</p>
+                        <p class="text-xs text-slate-400 mt-1">Haz clic en cualquier palabra del lector y pulsa 1, 2, 3 o 4 para añadirla a tu vocabulario.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const levelBadges = {
+                'learning': '<span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-400/40 text-amber-900 dark:text-amber-200">Nivel 1</span>',
+                'level-1': '<span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-400/40 text-amber-900 dark:text-amber-200">Nivel 1</span>',
+                'level-2': '<span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-yellow-300/50 text-yellow-900 dark:text-yellow-200">Nivel 2</span>',
+                'level-3': '<span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-yellow-200/70 text-yellow-800 dark:text-yellow-100">Nivel 3</span>',
+                'level-4': '<span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-yellow-100 border border-dashed border-yellow-400 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-100">Nivel 4</span>'
+            };
+
+            grid.innerHTML = entries.map(([word, data]) => `
+                <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm flex flex-col justify-between gap-4 surface-card">
+                    <div class="flex items-start justify-between gap-2">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <h4 class="text-lg font-bold text-slate-900 dark:text-white">${escapeHtml(word)}</h4>
+                                ${state.vocabFilter === 'learning' ? (levelBadges[data.status] || '') : ''}
+                            </div>
+                            <p class="text-xs font-medium text-violet-600 dark:text-violet-400 mt-0.5">🗣️ ${escapeHtml(data.approx || approxSpanishPhonetics(word))} <span class="font-mono text-slate-400">${escapeHtml(data.ipa || '')}</span></p>
+                        </div>
+                        <button onclick="speakText('${word.replace(/'/g, "\\'")}')" class="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-600 hover:text-white transition-colors">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
+                        </button>
+                    </div>
+                    <p class="text-sm font-medium text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/70 px-3 py-2 rounded-xl">${escapeHtml(data.es || 'Sin traducción guardada')}</p>
+                    <div class="flex justify-end">
+                        ${state.vocabFilter === 'learning'
+                            ? `<button onclick="promoteWord('${word.replace(/'/g, "\\'")}')" class="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline">✓ Marcar como Conocida</button>`
+                            : `<button onclick="demoteWord('${word.replace(/'/g, "\\'")}')" class="text-xs font-semibold text-amber-600 dark:text-amber-400 hover:underline">↺ Volver a Nivel 1</button>`
+                        }
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function promoteWord(word) {
+            if (state.wordData[word]) {
+                state.wordData[word].status = 'known';
+                saveState();
+                updateStats();
+                renderVocabGrid();
+                showToast(`✓ "${word}" marcada como Conocida`);
+            }
+        }
+
+        function demoteWord(word) {
+            if (state.wordData[word]) {
+                state.wordData[word].status = 'level-1';
+                saveState();
+                updateStats();
+                renderVocabGrid();
+                showToast(`"${word}" movida a Amarillo Nivel 1`);
+            }
+        }
+
+        /* =========================================================================
+           11. GENERADOR DE HISTORIAS CON IA (GEMINI) E IMPORTADOR
+           ========================================================================= */
+        function openAIModal(presetLevel = null) {
+            if (presetLevel && ['A1', 'A2', 'B1', 'B2'].includes(presetLevel)) {
+                selectAILevel(presetLevel);
+            }
+            document.getElementById('ai-error').classList.add('hidden');
+            document.getElementById('ai-loading').classList.add('hidden');
+            const modal = document.getElementById('ai-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeAIModal() {
+            const modal = document.getElementById('ai-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function selectAILevel(lvl) {
+            state.aiSelectedLevel = lvl;
+            document.querySelectorAll('.ai-level-btn').forEach(btn => {
+                const active = btn.dataset.ailevel === lvl;
+                btn.className = active
+                    ? 'ai-level-btn py-2.5 px-3 rounded-xl border text-xs font-bold transition-all bg-indigo-600 border-indigo-600 text-white shadow-sm'
+                    : 'ai-level-btn py-2.5 px-3 rounded-xl border text-xs font-bold transition-all bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200';
+            });
+        }
+
+        function setAITopic(topic) {
+            document.getElementById('ai-topic').value = topic;
+        }
+
+        async function generateAIStory() {
+            const topic = document.getElementById('ai-topic').value.trim() || 'An unexpected adventure in a small coastal town';
+            const level = state.aiSelectedLevel || 'A2';
+            const count = parseInt(document.getElementById('ai-length').value, 10) || 8;
+
+            const loadingEl = document.getElementById('ai-loading');
+            const errorEl = document.getElementById('ai-error');
+            const submitBtn = document.getElementById('ai-submit-btn');
+
+            errorEl.classList.add('hidden');
+            loadingEl.classList.remove('hidden');
+            submitBtn.disabled = true;
+            submitBtn.classList.add('opacity-60', 'cursor-not-allowed');
+
+            // Si publicas en Google Sites, pega aquí tu API Key gratuita de Google AI Studio:
+            const apiKey = "";
+            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+
+            const prompt = `Create an engaging English short story for CEFR level ${level} about: "${topic}".
+Return ONLY a valid JSON object (no markdown) with this exact structure:
+{
+  "title": "Short catchy English title",
+  "category": "Short 1-2 word category in Spanish (e.g. Aventura, Misterio, Viajes)",
+  "description": "One short sentence in Spanish describing the story",
+  "sentences": [
+    {
+      "en": "Natural English sentence appropriate for ${level}.",
+      "es": "Natural Spanish translation.",
+      "phonetic": "Spanish-speaker easy phonetic spelling with accents, like: Di óder fáiters kéim íntu di arína."
+    }
+  ]
+}
+Requirements:
+- Exactly ${count} sentences.
+- The "phonetic" field MUST sound like English read by a Spanish speaker with clear stressed vowels (á, é, í, ó, ú), NEVER IPA symbols.`;
+
+            try {
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }],
+                        generationConfig: { responseMimeType: 'application/json' }
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Error de API (${response.status}). Añade tu API Key de Gemini en el código para generar historias con IA.`);
+                }
+
+                const data = await response.json();
+                const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!rawText) throw new Error('La IA no devolvió contenido.');
+
+                const parsed = JSON.parse(rawText);
+                if (!parsed.sentences || !Array.isArray(parsed.sentences) || !parsed.sentences.length) {
+                    throw new Error('Formato de historia inválido.');
+                }
+
+                const newLesson = {
+                    id: 'ai-' + Date.now(),
+                    title: parsed.title || 'AI English Story',
+                    level: `Nivel ${level}`,
+                    levelCode: level,
+                    category: parsed.category || 'IA',
+                    description: parsed.description || 'Historia generada con Inteligencia Artificial.',
+                    isAI: true,
+                    sentences: parsed.sentences.map(s => ({
+                        en: s.en,
+                        es: s.es || '',
+                        phonetic: s.phonetic || generateSentencePhonetic(s.en)
+                    }))
+                };
+
+                state.lessons.unshift(newLesson);
+                saveState();
+                closeAIModal();
+                openLesson(newLesson.id);
+                showToast(`✨ Historia nivel ${level} creada con éxito`);
+            } catch (err) {
+                errorEl.textContent = err.message || 'No se pudo generar la historia. Inténtalo de nuevo.';
+                errorEl.classList.remove('hidden');
+            } finally {
+                loadingEl.classList.add('hidden');
+                submitBtn.disabled = false;
+                submitBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+            }
+        }
+
+        function openImportModal() {
+            const modal = document.getElementById('import-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeImportModal() {
+            const modal = document.getElementById('import-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function importCustomLesson() {
+            const title = document.getElementById('import-title').value.trim() || 'Mi Texto en Inglés';
+            const levelCode = document.getElementById('import-level').value || 'B1';
+            const rawText = document.getElementById('import-text').value.trim();
+
+            if (!rawText) {
+                showToast('Pega algún texto en inglés primero.');
+                return;
+            }
+
+            const rawSentences = rawText.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [rawText];
+            const sentences = rawSentences
+                .map(s => s.trim())
+                .filter(Boolean)
+                .map(en => ({
+                    en,
+                    es: '',
+                    phonetic: generateSentencePhonetic(en)
+                }));
+
+            const newLesson = {
+                id: 'custom-' + Date.now(),
+                title,
+                level: `Nivel ${levelCode}`,
+                levelCode,
+                category: 'Importado',
+                description: 'Texto personalizado importado por ti.',
+                sentences
+            };
+
+            state.lessons.unshift(newLesson);
+            saveState();
+            document.getElementById('import-title').value = '';
+            document.getElementById('import-text').value = '';
+            closeImportModal();
+            openLesson(newLesson.id);
+            showToast(`✓ Lección "${title}" creada`);
+        }
+
+        /* =========================================================================
+           12. TEMAS (CLARO / SEPIA / OSCURO) Y NOTIFICACIONES TOAST
+           ========================================================================= */
+        function applyTheme() {
+            const html = document.documentElement;
+            const body = document.body;
+            html.classList.remove('dark');
+            body.classList.remove('theme-sepia');
+
+            if (state.theme === 'dark') {
+                html.classList.add('dark');
+            } else if (state.theme === 'sepia') {
+                body.classList.add('theme-sepia');
+            }
+        }
+
+        function cycleTheme() {
+            const order = ['light', 'sepia', 'dark'];
+            state.theme = order[(order.indexOf(state.theme) + 1) % order.length];
+            applyTheme();
+            saveState();
+            const names = { light: '☀️ Tema Claro', sepia: '📜 Tema Sepia', dark: '🌙 Tema Oscuro' };
+            showToast(names[state.theme]);
+        }
+
+        let toastTimer = null;
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            const msgEl = document.getElementById('toast-msg');
+            if (!toast || !msgEl) return;
+            msgEl.textContent = msg;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 2400);
+        }
+
+        /* =========================================================================
+           13. NAVEGACIÓN CON TECLADO (FLECHAS + TECLAS 1, 2, 3, 4, 5, 0)
+           ========================================================================= */
+        document.addEventListener('keydown', (e) => {
+            if (state.currentView !== 'reader') return;
+
+            const aiOpen = !document.getElementById('ai-modal').classList.contains('hidden');
+            const importOpen = !document.getElementById('import-modal').classList.contains('hidden');
+            if (aiOpen || importOpen) return;
+
+            const tag = (document.activeElement && document.activeElement.tagName) || '';
+            if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag)) return;
+
+            const allTokens = document.querySelectorAll('#sentences-container .word-token');
+            if (!allTokens.length) return;
+
+            if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                const nextIdx = state.selectedTokenIdx === null ? 0 : Math.min(state.selectedTokenIdx + 1, allTokens.length - 1);
+                selectWordByTokenIdx(nextIdx, true);
+            } else if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                const prevIdx = state.selectedTokenIdx === null ? 0 : Math.max(state.selectedTokenIdx - 1, 0);
+                selectWordByTokenIdx(prevIdx, true);
+            } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                const lesson = getCurrentLesson();
+                if (!lesson) return;
+                const dir = e.key === 'ArrowDown' ? 1 : -1;
+                const targetSent = Math.max(0, Math.min(state.selectedSentenceIdx + dir, lesson.sentences.length - 1));
+                const firstTokenInSent = document.querySelector(`#sentences-container .word-token[data-sent-idx="${targetSent}"]`);
+                if (firstTokenInSent) {
+                    selectWordByTokenIdx(parseInt(firstTokenInSent.dataset.tokenIdx, 10), true);
+                }
+            } else if (['1', '2', '3', '4'].includes(e.key)) {
+                if (!state.selectedWord) {
+                    selectWordByTokenIdx(0, true);
+                }
+                e.preventDefault();
+                setWordStatus(`level-${e.key}`);
+            } else if (e.key === '5') {
+                if (state.selectedWord) {
+                    e.preventDefault();
+                    setWordStatus('known');
+                }
+            } else if (e.key === '0') {
+                if (state.selectedWord) {
+                    e.preventDefault();
+                    setWordStatus('new');
+                }
+            }
+        });
+
+        /* =========================================================================
+           14. INICIALIZACIÓN
+           ========================================================================= */
+        window.addEventListener('DOMContentLoaded', () => {
+            loadState();
+            applyTheme();
+            populateLessonSelector();
+            updateStats();
+            document.getElementById('btn-speed').textContent = `${state.speed.toFixed(state.speed === 1 ? 1 : 2).replace(/0$/, '')}x`;
+            document.getElementById('btn-accent').textContent = state.accent === 'en-US' ? '🇺🇸 US' : '🇬🇧 UK';
+
+            // Precargar voces de SpeechSynthesis en navegadores que las cargan asíncronamente
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.getVoices();
+            }
+
+            switchView('home');
+        });
+    </script>
+</body>
+</html>
